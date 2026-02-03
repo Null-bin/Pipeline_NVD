@@ -1,11 +1,12 @@
--- 1. CRIAÇÃO DO SCHEMA E USUÁRIO
+-- 1. Configuração de Ambiente e Schema
 CREATE SCHEMA IF NOT EXISTS vulnerability AUTHORIZATION airflow_sec;
+GRANT ALL ON SCHEMA vulnerability TO airflow_sec;
 
--- 2. SEQUÊNCIAS (Ajustadas para airflow_sec)
+-- 2. Sequências para IDs Automáticos
 CREATE SEQUENCE IF NOT EXISTS vulnerability.assets_id_seq START 1 OWNER TO airflow_sec;
 CREATE SEQUENCE IF NOT EXISTS vulnerability.defender_detections_id_seq START 1 OWNER TO airflow_sec;
 
--- 3. TABELA DE ATIVOS (Assets)
+-- 3. Tabela de Inventário de Ativos (Assets)
 CREATE TABLE vulnerability.assets (
     id serial4 NOT NULL,
     asset_id varchar(50) UNIQUE,
@@ -14,31 +15,84 @@ CREATE TABLE vulnerability.assets (
     servico_vinculado varchar(150),
     descricao varchar(255),
     media_criticidade numeric(4, 2),
+    faixa_criticidade varchar(50),
+    identificador varchar(100),
     CONSTRAINT assets_pkey PRIMARY KEY (id)
 );
 ALTER TABLE vulnerability.assets OWNER TO airflow_sec;
+CREATE INDEX IF NOT EXISTS idx_asset_service ON vulnerability.assets (servico_vinculado, descricao);
 
--- 4. TABELA PRINCIPAL (NVD CVEs)
+-- 4. Tabela Principal de Vulnerabilidades (NVD)
 CREATE TABLE vulnerability.nvd_cves (
     cve_id varchar(20) NOT NULL,
     descricao text,
     base_score numeric(3, 1),
     severidade varchar(20),
+    vetor_ataque varchar(50),
+    status_vulnerabilidade varchar(50),
     vendor varchar(255),
+    complexidade_ataque varchar(20),
+    interacao_usuario varchar(20),
+    privilegios_necessarios varchar(20),
+    vetor_string_completo text,
     data_ultima_modificacao timestamp,
     data_coleta_airflow timestamp DEFAULT CURRENT_TIMESTAMP,
     json_original jsonb,
     CONSTRAINT nvd_cves_pkey PRIMARY KEY (cve_id)
 );
 ALTER TABLE vulnerability.nvd_cves OWNER TO airflow_sec;
+CREATE INDEX IF NOT EXISTS idx_nvd_desc_trgm ON vulnerability.nvd_cves USING gin (descricao gin_trgm_ops);
 
--- 5. TABELA DE DETECÇÕES (Vínculo com Defender)
+-- 5. Tabela de Detecções (Integração Defender)
 CREATE TABLE vulnerability.defender_detections (
     id serial4 NOT NULL,
     cve_id varchar(20) REFERENCES vulnerability.nvd_cves(cve_id),
     device_name varchar(150),
+    device_id varchar(100),
     software_name text,
     data_deteccao timestamp DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT defender_detections_pkey PRIMARY KEY (id)
 );
 ALTER TABLE vulnerability.defender_detections OWNER TO airflow_sec;
+
+--- 6. CAMADA DE INTELIGÊNCIA (VIEWS) ---
+
+-- View de Heurística de Vendor (Classificação por Descrição)
+CREATE OR REPLACE VIEW vulnerability.vw_cve_vendor_heuristic AS
+SELECT cve_id,
+    CASE
+        WHEN descricao ~~* '%microsoft%' THEN 'Microsoft'
+        WHEN descricao ~~* '%oracle%' THEN 'Oracle'
+        WHEN descricao ~~* '%cisco%' THEN 'Cisco'
+        WHEN descricao ~~* '%fortinet%' THEN 'Fortinet'
+        WHEN descricao ~~* '%postgresql%' THEN 'PostgreSQL'
+        ELSE 'Outros'
+    END AS vendor
+FROM vulnerability.nvd_cves;
+ALTER VIEW vulnerability.vw_cve_vendor_heuristic OWNER TO airflow_sec;
+
+-- View de Inteligência e Roteamento de Squads (O Cérebro do Projeto)
+CREATE OR REPLACE VIEW vulnerability.vw_vulnerability_intelligence AS
+WITH cve_analise_profunda AS (
+    SELECT cve_id,
+           'https://nvd.nist.gov/vuln/detail/' || cve_id AS link_nvd,
+           initcap(substring(json_original::text from 'cpe:2\.3:[oah]:([^:]+):')) AS vendor_real,
+           substring(json_original::text from 'cpe:2\.3:[oah]:[^:]+:([^:]+):') AS produto_real,
+           base_score,
+           severidade,
+           interacao_usuario,
+           vetor_string_completo,
+           descricao,
+           data_ultima_modificacao
+    FROM vulnerability.nvd_cves
+    WHERE split_part(cve_id, '-', 2) >= '2023'
+)
+SELECT *,
+    CASE
+        WHEN produto_real ~* 'windows_1[01]|chrome|firefox|edge' THEN 'SQUAD WORKPLACE'
+        WHEN produto_real ~* 'windows_server|sql_server|sharepoint' THEN 'SQUAD INFRA/DBA'
+        WHEN vendor_real = 'Adobe' THEN 'SQUAD CREATIVE APPS'
+        ELSE 'TI - SEGURANÇA DA INFORMAÇÃO'
+    END AS squad_responsavel
+FROM cve_analise_profunda;
+ALTER VIEW vulnerability.vw_vulnerability_intelligence OWNER TO airflow_sec;
