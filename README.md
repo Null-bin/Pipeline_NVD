@@ -50,4 +50,15 @@ A camada de visão (vw_vulnerability_intelligence) atua como o motor de decisão
 * SQUAD WORKPLACE: Windows 10/11, Chrome e Office.
 * SQUAD INFRA/DBA: Windows Server, SQL Server e SharePoint.
 * SQUAD CREATIVE APPS: Produtos Adobe.
-* SQUAD NETWORK: Ativos Cisco, Fortinet e Palo Alto.
+* SQUAD NETWORK SEC: Ativos Cisco, Fortinet e Palo Alto.
+* SQUAD DEVOPS/SYSOPS: AzureDevOps, Terraform, Puppet, Jekins e outros.
+* SQUAD DATAOPS: Apache Airflow e Spark, Snowflake, Databricks, DataFactory e outros.
+* SQUAD SECOPS e APPSEC: ...
+
+
+### 🛠️ Stack Técnica
+Database: PostgreSQL 15+ (JSONB & GIN Indexes).
+
+Orchestration: Apache Airflow.
+
+Ingestion: Python / NVD API 2.0.
