@@ -53,7 +53,7 @@ A camada de visão (vw_vulnerability_intelligence) atua como o motor de decisão
 * SQUAD NETWORK SEC: Ativos Cisco, Fortinet e Palo Alto.
 * SQUAD DEVOPS/SYSOPS: AzureDevOps, Terraform, Puppet, Jekins e outros.
 * SQUAD DATAOPS: Apache Airflow e Spark, Snowflake, Databricks, DataFactory e outros.
-* SQUAD SECOPS e APPSEC: ...
+* SQUAD SECOPS e APPSEC: Checkmarx, Veracode, SonarQube, Fortify, Acunetix, Escape e outros  ...
 
 
 ### 🛠️ Stack Técnica
